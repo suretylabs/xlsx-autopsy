@@ -1,7 +1,7 @@
 """Module entry for ``uv run python -m xlsx_autopsy``.
 
 Usage:
-    uv run python -m xlsx_autopsy --excel workbook.xlsx
+    uv run python -m xlsx_autopsy workbook.xlsx
 """
 
 from xlsx_autopsy.reconstruct import main

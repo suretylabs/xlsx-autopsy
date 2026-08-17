@@ -206,6 +206,53 @@ def test_cli_wipes_prior_outputs(
     assert (out / "reconstruction.duckdb").is_file()
 
 
+def test_cli_version(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from xlsx_autopsy import __version__
+    from xlsx_autopsy.reconstruct import main
+
+    monkeypatch.setattr("sys.argv", ["xlsx-autopsy", "-V"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+    assert __version__ in capsys.readouterr().out
+
+
+def test_cli_positional_workbook(
+    fixture_xlsx: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = tmp_path / "out"
+    _run_cli(
+        monkeypatch,
+        ["xlsx-autopsy", str(fixture_xlsx), "-o", str(out), "--skip-formulas"],
+    )
+    assert (out / "report_blueprint.json").is_file()
+
+
+def test_cli_rejects_conflicting_workbook_paths(
+    fixture_xlsx: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "xlsx-autopsy",
+            str(fixture_xlsx),
+            "--excel",
+            str(tmp_path / "other.xlsx"),
+            "-o",
+            str(tmp_path / "out"),
+        ],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        from xlsx_autopsy.reconstruct import main
+
+        main()
+    assert excinfo.value.code == 1
+
+
 def test_cli_missing_workbook_exits_1(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

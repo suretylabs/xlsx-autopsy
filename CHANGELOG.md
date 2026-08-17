@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 — 2026-08-17
+
+Launch surface.
+
+- Positional workbook path: `uv run xlsx-autopsy report.xlsx`
+- `-V` / `--version`
+- Hatchling version is sourced from `xlsx_autopsy.__version__`
+- SECURITY.md, Dependabot, PyPI trusted-publish workflow (release-gated)
+- GitHub issue template that forbids real workbooks
+- README positions this against Excel, openpyxl, and xlwings
+
 ## 0.1.2 — 2026-08-17
 
 uv-native public surface.

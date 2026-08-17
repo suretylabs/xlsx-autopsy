@@ -17,9 +17,9 @@ Outputs:
 - parquet/ per sheet
 
 Examples:
-    uv run xlsx-autopsy --excel workbook.xlsx
-    uv run xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas
-    uv run python -m xlsx_autopsy --excel workbook.xlsx
+    uv run xlsx-autopsy workbook.xlsx
+    uv run xlsx-autopsy workbook.xlsx -o out --skip-formulas
+    uv run python -m xlsx_autopsy workbook.xlsx
 """
 
 from __future__ import annotations
@@ -49,6 +49,7 @@ import polars as pl
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from xlsx_autopsy import __version__
 from xlsx_autopsy.secrets import redact_connection_fields
 
 try:
@@ -176,9 +177,18 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="xlsx-autopsy",
         description="Decompose a huge Excel workbook without opening it.",
+        epilog=(
+            "Examples:\n"
+            "  uv run xlsx-autopsy workbook.xlsx\n"
+            "  uv run xlsx-autopsy workbook.xlsx -o out --skip-formulas\n"
+            "  uvx --from git+https://github.com/suretylabs/xlsx-autopsy "
+            "xlsx-autopsy workbook.xlsx\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--excel", type=Path, help="Input .xlsx path")
-    parser.add_argument("--input", "-i", type=Path, help="Alias for --excel")
+    parser.add_argument("workbook", nargs="?", type=Path, help="Input .xlsx path")
+    parser.add_argument("--excel", type=Path, help="Alias for the positional workbook path")
+    parser.add_argument("--input", "-i", type=Path, help="Alias for the positional workbook path")
     parser.add_argument("--output", "-o", type=Path, help="Output directory")
     parser.add_argument(
         "--keep-outputs",
@@ -196,7 +206,28 @@ def parse_args() -> argparse.Namespace:
         help="Keep raw OLEDB/ODBC connection strings. Default redacts passwords and user ids.",
     )
     parser.add_argument("--config", default=None, help="Optional TOML config (xlsx-autopsy.toml)")
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
     return parser.parse_args()
+
+
+def resolve_workbook_arg(args: argparse.Namespace) -> Path | None:
+    """Return the single CLI workbook path, or None when only config/env will supply it.
+
+    Args:
+        args: Parsed command-line arguments.
+
+    Returns:
+        The workbook path when exactly one CLI source is set.
+
+    Raises:
+        SystemExit: If positional, ``--excel``, and ``--input`` disagree.
+    """
+    supplied = [path for path in (args.workbook, args.excel, args.input) if path is not None]
+    unique = {str(Path(path)) for path in supplied}
+    if len(unique) > 1:
+        console.print("[bold red]Pass the workbook once.[/bold red] Use a positional path or --excel, not both.")
+        raise SystemExit(1)
+    return supplied[0] if supplied else None
 
 
 def get_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -222,7 +253,7 @@ def get_config(args: argparse.Namespace) -> dict[str, Any]:
             return section.get(toml_key)
         return default
 
-    input_path = args.excel if args.excel else args.input
+    input_path = resolve_workbook_arg(args)
 
     sst_trunc_raw = _resolve(None, "XLSX_AUTOPSY_SST_TRUNCATE", "sst_truncate", 5000)
     try:

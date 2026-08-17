@@ -1,0 +1,14 @@
+# Copy to xlsx-autopsy.toml (gitignored) and point at a local workbook.
+# Secrets still come from the workbook XML, not from this file.
+
+[xlsx_autopsy]
+workbook_path = "workbook.xlsx"
+output_dir = "out"
+sst_truncate = 5000
+
+# [xlsx_autopsy.formula_extract]
+# max_sheets = 300
+# scout_bytes = 25000000
+# max_workers = 4
+# max_formulas_per_sheet = 200000
+# max_cells_per_sheet = 1500000

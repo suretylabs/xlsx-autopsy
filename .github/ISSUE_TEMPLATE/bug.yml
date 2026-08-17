@@ -1,0 +1,29 @@
+name: Bug
+description: Something is wrong with the extract or the CLI.
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Do not attach a real workbook, a connection string, or a password.
+        Build a synthetic .xlsx that reproduces the bug.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Command, expected result, actual result, exit code.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `uv run xlsx-autopsy -V`
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python
+      description: "3.12, 3.13, or 3.14"
+    validations:
+      required: true

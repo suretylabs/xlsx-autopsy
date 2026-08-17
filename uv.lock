@@ -315,7 +315,6 @@ wheels = [
 
 [[package]]
 name = "xlsx-autopsy"
-version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },

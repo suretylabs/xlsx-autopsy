@@ -15,7 +15,7 @@ The package manager is **uv**. Do not document or add a pip, poetry, or pdm path
 
 ```pwsh
 uv sync --group dev
-uv run xlsx-autopsy --excel path/to/workbook.xlsx -o out --skip-formulas
+uv run xlsx-autopsy path/to/workbook.xlsx -o out --skip-formulas
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run pyright src tests
