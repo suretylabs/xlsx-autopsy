@@ -31,9 +31,13 @@ Python 3.12, 3.13, or 3.14. Local default is 3.14.
 
 ```bash
 xlsx-autopsy --excel workbook.xlsx
-xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas --reset
+xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas
 python -m xlsx_autopsy --excel workbook.xlsx
 ```
+
+Each run wipes `reconstruction.duckdb`, `report_blueprint.json`, and `parquet/`
+in the output directory so two workbooks never commingle. Pass `--keep-outputs`
+only when you are deliberately appending.
 
 Default output directory is `out/`:
 
@@ -41,9 +45,11 @@ Default output directory is `out/`:
 - `reconstruction.duckdb` — queryable extract
 - `parquet/` — one file per sheet
 
-Connection strings are **redacted by default**. If you actually need the raw
-OLEDB/ODBC string (password and all), pass `--include-connection-secrets`.
-Do not commit that output.
+Connection strings are **redacted by default**, including brace-wrapped OLEDB
+secrets that contain semicolons. If you actually need the raw string, pass
+`--include-connection-secrets`. Do not commit that output.
+
+A corrupt workbook or a failed formula worker exits **1**. Success is not silent.
 
 Optional TOML:
 

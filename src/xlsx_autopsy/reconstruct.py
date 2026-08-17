@@ -17,8 +17,9 @@ Outputs:
 - parquet/ per sheet
 
 Examples:
-    xlsx-autopsy --excel workbook.xlsx
-    xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas --reset
+    uv run xlsx-autopsy --excel workbook.xlsx
+    uv run xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas
+    uv run python -m xlsx_autopsy --excel workbook.xlsx
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ProcessPoolExecutor
 import csv
+from dataclasses import dataclass
 import hashlib
 import json
 import logging
@@ -126,6 +128,25 @@ class AnalysisReport(TypedDict):
     package_inventory: dict[str, Any]
     processed_sheets: list[ProcessedSheet]
     failed_sheets: list[FailedSheet]
+    formula_warnings: list[str]
+
+
+@dataclass(frozen=True)
+class FormulaScoutResult:
+    """Sheets the formula extractor should parse, plus what the scout skipped."""
+
+    hits: list[str]
+    omitted_by_cap: list[str]
+    forced_parse: list[str]
+
+
+@dataclass(frozen=True)
+class FormulaWorkerResult:
+    """Outcome of one formula-extract worker process."""
+
+    count: int
+    csv_path: str
+    error: str | None = None
 
 
 # -----------------------------------------------------------------------------
@@ -159,7 +180,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--excel", type=Path, help="Input .xlsx path")
     parser.add_argument("--input", "-i", type=Path, help="Alias for --excel")
     parser.add_argument("--output", "-o", type=Path, help="Output directory")
-    parser.add_argument("--reset", action="store_true", help="Reset outputs before run")
+    parser.add_argument(
+        "--keep-outputs",
+        action="store_true",
+        help="Do not wipe prior DuckDB/parquet/blueprint in the output directory.",
+    )
     parser.add_argument(
         "--skip-formulas",
         action="store_true",
@@ -184,86 +209,39 @@ def get_config(args: argparse.Namespace) -> dict[str, Any]:
         Configuration dictionary with resolved paths and settings.
     """
     raw = load_toml_config(Path(args.config)) if args.config else {}
-    section_new = raw.get("xlsx_autopsy", {})
-    section_old = raw.get("excel_report_rebuild", {})
+    section = raw.get("xlsx_autopsy", {})
 
-    def _resolve(
-        arg_val: Any,
-        env_key_new: str,
-        env_key_old: str,
-        toml_key: str,
-        default: Any,
-    ) -> Any:
+    def _resolve(arg_val: Any, env_key: str, toml_key: str, default: Any) -> Any:
         """Resolve a config value using CLI, env, TOML, then default precedence."""
-        # Precedence: CLI > ENV(new) > ENV(old) > TOML(new) > TOML(old) > default
         if arg_val is not None and arg_val != "":
-            return arg_val  # CLI wins
-        v = os.getenv(env_key_new)
-        if v is not None and v != "":
-            return v
-        v = os.getenv(env_key_old)
-        if v is not None and v != "":
-            return v
-        if toml_key in section_new:
-            return section_new.get(toml_key)
-        if toml_key in section_old:
-            return section_old.get(toml_key)
+            return arg_val
+        env_val = os.getenv(env_key)
+        if env_val is not None and env_val != "":
+            return env_val
+        if toml_key in section:
+            return section.get(toml_key)
         return default
 
-    # Support both --excel and --input, preferring --excel
     input_path = args.excel if args.excel else args.input
 
-    sst_trunc_raw = _resolve(
-        None,
-        "XLSX_AUTOPSY_SST_TRUNCATE",
-        "EXCEL_REPORT_REBUILD_SST_TRUNCATE",
-        "sst_truncate",
-        5000,
-    )
+    sst_trunc_raw = _resolve(None, "XLSX_AUTOPSY_SST_TRUNCATE", "sst_truncate", 5000)
     try:
         sst_truncate = int(sst_trunc_raw)
-    except Exception:
+    except (TypeError, ValueError):
         sst_truncate = 5000
     if sst_truncate < 0:
         sst_truncate = 0
 
     return {
-        "workbook_path": Path(
-            _resolve(
-                input_path,
-                "XLSX_AUTOPSY_WORKBOOK",
-                "XLSX_AUTOPSY_WORKBOOK",
-                "workbook_path",
-                str(DEFAULT_EXCEL_PATH),
-            )
-        ),
-        "output_dir": Path(
-            _resolve(
-                args.output,
-                "XLSX_AUTOPSY_OUTPUT",
-                "XLSX_AUTOPSY_OUTPUT",
-                "output_dir",
-                "out",
-            )
-        ),
-        "db_name": _resolve(
-            None,
-            "XLSX_AUTOPSY_DB",
-            "XLSX_AUTOPSY_DB",
-            "db_name",
-            "reconstruction.duckdb",
-        ),
-        "parquet_dir": _resolve(
-            None,
-            "XLSX_AUTOPSY_PARQUET",
-            "XLSX_AUTOPSY_PARQUET",
-            "parquet_dir",
-            "parquet",
-        ),
+        "workbook_path": Path(_resolve(input_path, "XLSX_AUTOPSY_WORKBOOK", "workbook_path", str(DEFAULT_EXCEL_PATH))),
+        "output_dir": Path(_resolve(args.output, "XLSX_AUTOPSY_OUTPUT", "output_dir", "out")),
+        "db_name": _resolve(None, "XLSX_AUTOPSY_DB", "db_name", "reconstruction.duckdb"),
+        "parquet_dir": _resolve(None, "XLSX_AUTOPSY_PARQUET", "parquet_dir", "parquet"),
         "sst_truncate": sst_truncate,
         "skip_formulas": args.skip_formulas,
         "include_connection_secrets": bool(args.include_connection_secrets),
-        "formula_extract": section_new.get("formula_extract") or section_old.get("formula_extract") or {},
+        "keep_outputs": bool(args.keep_outputs),
+        "formula_extract": section.get("formula_extract") or {},
     }
 
 
@@ -290,15 +268,23 @@ def cleanup_outputs(output_dir: Path, db_path: Path, parquet_dir: Path) -> None:
 
 
 def sanitize_table_name(name: str) -> str:
-    """Sanitize a sheet name to be a valid table name.
+    """Sanitize a sheet name to a non-empty DuckDB table name.
+
+    Excel allows names that are punctuation-only (``!!!``). Those must not
+    collapse to an empty identifier.
 
     Args:
         name: Original sheet name.
 
     Returns:
-        Sanitized table name with only alphanumeric characters and underscores.
+        Alphanumeric/underscore table name. Punctuation-only names become
+        ``sheet_<sha256-8>``.
     """
-    return "".join(c if c.isalnum() else "_" for c in name).strip("_")
+    cleaned = "".join(c if c.isalnum() else "_" for c in name).strip("_")
+    if cleaned:
+        return cleaned
+    digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:8]
+    return f"sheet_{digest}"
 
 
 def log_status(msg: str, start_time: float | None = None) -> None:
@@ -832,32 +818,50 @@ def _format_formula_with_meta(elem: XmlElement, txt: str) -> str:
 _FORMULA_TAG_RE_BYTES = re.compile(rb"<(?:[A-Za-z0-9_]+:)?f(?:\s|>)")
 
 
+def _sheet_part_sort_key(name: str) -> tuple[int, str]:
+    """Sort ``sheet10.xml`` after ``sheet2.xml`` instead of lexicographically."""
+    match = re.search(r"sheet(\d+)\.xml$", name)
+    return (int(match.group(1)), name) if match else (10**9, name)
+
+
+def _worksheet_members(zipf: zipfile.ZipFile, max_sheets: int) -> tuple[list[str], list[str]]:
+    """Return worksheet parts up to ``max_sheets``, plus the omitted tail."""
+    members = [n for n in zipf.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
+    members.sort(key=_sheet_part_sort_key)
+    return members[:max_sheets], members[max_sheets:]
+
+
 def scout_formula_sheets(
     zipf: zipfile.ZipFile,
     *,
     max_sheets: int = 300,
     max_bytes_per_sheet: int = 25_000_000,
-) -> list[str]:
-    """Return worksheet part names that likely contain formulas.
+) -> FormulaScoutResult:
+    """Return worksheet parts that should be parsed for formulas.
 
-    We scan the first N bytes of each sheet for a <f> tag (with optional namespace prefix)
-    before paying the cost of XML parsing. This prevents pathological runtime on very large
-    worksheets that contain no formulas.
+    Scout is an optimization, not a filter of last resort. A sheet is included
+    when a ``<f>`` tag appears in the scout window, when the part is larger than
+    the window (the tag may live past it), or when the scout itself errors.
+    Sheets past ``max_sheets`` are recorded, not silently dropped.
     """
-    members = [n for n in zipf.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")][:max_sheets]
-
+    selected, omitted = _worksheet_members(zipf, max_sheets)
     hits: list[str] = []
-    for name in members:
+    forced_parse: list[str] = []
+    for name in selected:
         try:
-            with zipf.open(name) as fh:
-                head = fh.read(max_bytes_per_sheet)
+            info = zipf.getinfo(name)
+            with zipf.open(name) as handle:
+                head = handle.read(max_bytes_per_sheet)
             if _FORMULA_TAG_RE_BYTES.search(head):
                 hits.append(name)
-        except Exception:
-            # If scouting fails for any reason, we fall back to parsing in extract_formulas.
-            continue
-
-    return hits
+            elif info.file_size > max_bytes_per_sheet:
+                hits.append(name)
+                forced_parse.append(name)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Formula scout failed for %s (%s); forcing parse", name, exc)
+            hits.append(name)
+            forced_parse.append(name)
+    return FormulaScoutResult(hits=hits, omitted_by_cap=omitted, forced_parse=forced_parse)
 
 
 def extract_formulas(
@@ -883,19 +887,17 @@ def extract_formulas(
 
     formulas: list[tuple[str, str | None, str | None]] = []
 
-    all_sheets = [n for n in zipf.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")][:max_sheets]
-
     if scout_enabled:
-        sheet_members = scout_formula_sheets(
+        scout = scout_formula_sheets(
             zipf,
             max_sheets=max_sheets,
             max_bytes_per_sheet=scout_bytes,
         )
-        # If scout finds nothing, assume there are no formulas worth extracting.
+        sheet_members = scout.hits
         if not sheet_members:
             return formulas
     else:
-        sheet_members = all_sheets
+        sheet_members, _omitted = _worksheet_members(zipf, max_sheets)
 
     for sheet in sheet_members:
         fh = safe_open(zipf, sheet)
@@ -1032,12 +1034,17 @@ def stream_shared_strings(
 
 def _worker_formula_task(
     excel_path: str, sheet_members: list[str], output_csv: str, max_formulas: int, max_cells: int
-) -> int:
-    """Worker function to parse a specific subset of sheets and write to CSV."""
+) -> FormulaWorkerResult:
+    """Parse a subset of worksheets and write formula rows to CSV.
+
+    On any exception the CSV is discarded so the parent never COPY-loads a
+    partial or missing file as if it were success.
+    """
     count = 0
     try:
-        with zipfile.ZipFile(excel_path, "r") as zipf, open(output_csv, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
+        with zipfile.ZipFile(excel_path, "r") as zipf, open(output_csv, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["sheet_file", "cell", "formula"])
 
             for sheet in sheet_members:
                 fh = safe_open(zipf, sheet)
@@ -1047,9 +1054,7 @@ def _worker_formula_task(
                 current_cell_ref = None
                 sheet_formula_count = 0
                 sheet_cell_count = 0
-
-                # Local cache for this sheet's shared formulas
-                shared_text_by_si = {}
+                shared_text_by_si: dict[str, str] = {}
 
                 for event, elem in et.iterparse(fh, events=("start", "end")):
                     if event == "start" and _tag_endswith(elem, "c"):
@@ -1086,9 +1091,10 @@ def _worker_formula_task(
                         elem.clear()
                         if sheet_cell_count >= max_cells:
                             break
-    except Exception:
-        return 0
-    return count
+    except Exception as exc:  # noqa: BLE001
+        Path(output_csv).unlink(missing_ok=True)
+        return FormulaWorkerResult(count=0, csv_path=output_csv, error=f"{type(exc).__name__}: {exc}")
+    return FormulaWorkerResult(count=count, csv_path=output_csv)
 
 
 # -----------------------------------------------------------------------------
@@ -1119,12 +1125,16 @@ def main() -> None:
     skip_formulas = config["skip_formulas"]
 
     if not Path(excel_path).is_file():
-        raise SystemExit(f"Workbook not found: {excel_path}\nPass --excel path/to/workbook.xlsx")
+        console.print(f"[bold red]Workbook not found:[/bold red] {excel_path}")
+        console.print("Pass --excel path/to/workbook.xlsx")
+        raise SystemExit(1)
 
     console.rule("[bold blue]xlsx-autopsy[/bold blue]")
     log_status(f"Input: {excel_path}")
 
-    if args.reset:
+    if config["keep_outputs"]:
+        log_status("Keeping prior outputs [--keep-outputs]")
+    else:
         log_status("Resetting outputs...")
         cleanup_outputs(output_dir, db_path, parquet_dir)
 
@@ -1155,6 +1165,7 @@ def main() -> None:
         "package_inventory": {},
         "processed_sheets": [],
         "failed_sheets": [],
+        "formula_warnings": [],
     }
 
     try:
@@ -1191,19 +1202,28 @@ def main() -> None:
             else:
                 log_status("Extracting calculation logic (Multiprocessed)...")
 
-                # 1. Scout candidates in main process (fast)
                 cfg = (config or {}).get("formula_extract", {})
-                candidates = scout_formula_sheets(
+                scout = scout_formula_sheets(
                     zipf,
                     max_sheets=int(cfg.get("max_sheets", 300)),
                     max_bytes_per_sheet=int(cfg.get("scout_bytes", 25_000_000)),
                 )
+                candidates = scout.hits
+                if scout.omitted_by_cap:
+                    warning = (
+                        f"Formula scout omitted {len(scout.omitted_by_cap)} sheet(s) "
+                        f"past max_sheets={cfg.get('max_sheets', 300)}"
+                    )
+                    log_status(f"  ⚠ {warning}")
+                    analysis["formula_warnings"].append(warning)
+                if scout.forced_parse:
+                    warning = f"Formula scout forced parse on {len(scout.forced_parse)} sheet(s)"
+                    log_status(f"  ⚠ {warning}")
+                    analysis["formula_warnings"].append(warning)
 
                 if not candidates:
                     log_status("  ⚠ No formulas found (scout returned 0 sheets)")
                 else:
-                    # 2. Split into chunks for workers
-                    # SAFE DEFAULT: 4 workers instead of max_cpu to preserve RAM
                     user_limit = int(cfg.get("max_workers", 4))
                     num_workers = min(user_limit, multiprocessing.cpu_count())
                     num_workers = min(num_workers, len(candidates))
@@ -1211,35 +1231,53 @@ def main() -> None:
                     chunk_size = math.ceil(len(candidates) / num_workers)
                     chunks = [candidates[i : i + chunk_size] for i in range(0, len(candidates), chunk_size)]
 
-                    temp_csvs = []
-                    futures = []
-
                     max_f = int(cfg.get("max_formulas_per_sheet", 200_000))
                     max_c = int(cfg.get("max_cells_per_sheet", 1_500_000))
 
                     log_status(f"  • Spawning {num_workers} workers for {len(candidates)} sheets")
 
+                    worker_results: list[FormulaWorkerResult] = []
                     with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                        futures = []
                         for i, chunk in enumerate(chunks):
                             csv_path = output_dir / f"temp_formulas_worker_{i}.csv"
-                            temp_csvs.append(str(csv_path))
                             futures.append(
                                 executor.submit(
-                                    _worker_formula_task, str(excel_path), chunk, str(csv_path), max_f, max_c
+                                    _worker_formula_task,
+                                    str(excel_path),
+                                    chunk,
+                                    str(csv_path),
+                                    max_f,
+                                    max_c,
                                 )
                             )
+                        worker_results = [future.result() for future in futures]
 
-                        total_captured = sum(f.result() for f in futures)
-
-                    # 3. Bulk Load
-                    if temp_csvs:
-                        # Load each temp CSV file into DuckDB
-                        for p in temp_csvs:
-                            file_path = p.replace(os.sep, "/")
-                            con.execute(f"COPY formulas FROM '{file_path}' (FORMAT CSV)")
-                            Path(p).unlink(missing_ok=True)
+                    total_captured = 0
+                    worker_errors: list[str] = []
+                    for result in worker_results:
+                        csv_file = Path(result.csv_path)
+                        if result.error:
+                            worker_errors.append(result.error)
+                            analysis["formula_warnings"].append(f"Formula worker failed: {result.error}")
+                            csv_file.unlink(missing_ok=True)
+                            continue
+                        if not csv_file.is_file():
+                            worker_errors.append(f"missing CSV {result.csv_path}")
+                            analysis["formula_warnings"].append(f"Formula worker missing CSV: {result.csv_path}")
+                            continue
+                        if result.count > 0:
+                            csv_sql = str(csv_file).replace("\\", "/")
+                            con.execute(
+                                f"COPY formulas FROM '{csv_sql}' "
+                                "(FORMAT CSV, HEADER true, DELIMITER ',', QUOTE '\"', ESCAPE '\"')"
+                            )
+                        total_captured += result.count
+                        csv_file.unlink(missing_ok=True)
 
                     log_status(f"  ✓ Captured {total_captured:,} formulas")
+                    if worker_errors:
+                        raise RuntimeError(f"{len(worker_errors)} formula worker(s) failed: {worker_errors[0]}")
 
             # --- PHASE 3: Shared Strings (The "Ghost Data" Hunt) ---
             log_status("Extracting lookup text and dimensions (shared strings)")
@@ -1280,6 +1318,7 @@ def main() -> None:
                             str(excel_path),
                             sheet_name=sheet_name,
                             engine="calamine",
+                            has_header=False,
                             infer_schema_length=0,
                             raise_if_empty=False,
                         )
@@ -1417,13 +1456,14 @@ def main() -> None:
         con.sql("SHOW TABLES").show()
         con.close()
 
-    except Exception as e:
-        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] {e}")
+    except Exception as exc:
+        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] {exc}")
         traceback.print_exc()
         try:
             con.close()  # type: ignore[possibly-undefined]
         except Exception:
-            pass  # Best-effort cleanup; original exception already printed above
+            pass
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

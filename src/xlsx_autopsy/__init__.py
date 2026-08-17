@@ -8,4 +8,4 @@ Usage:
 from xlsx_autopsy.secrets import redact_connection_fields, redact_connection_string
 
 __all__ = ["redact_connection_fields", "redact_connection_string"]
-__version__ = "0.1.0"
+__version__ = "0.1.1"

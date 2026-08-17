@@ -29,6 +29,27 @@ def test_redact_fields_default() -> None:
     assert out["dbPr"]["command"] == "SELECT 1"
 
 
+def test_redact_brace_wrapped_secret_with_semicolon() -> None:
+    secret = "pa" + ";ss"
+    raw = f"Provider=MSOLEDBSQL;{_CRED_KEY}={{{secret}}};Database=demo"
+    redacted = redact_connection_string(raw)
+    assert redacted is not None
+    assert secret not in redacted
+    assert "{" + secret not in redacted
+    assert f"{_CRED_KEY}=***" in redacted
+    assert "Database=demo" in redacted
+
+
+def test_redact_quoted_secret_with_semicolon() -> None:
+    secret = "semi" + ";colon"
+    raw = f'{_CRED_KEY}="{secret}";UID=sa'
+    redacted = redact_connection_string(raw)
+    assert redacted is not None
+    assert secret not in redacted
+    assert f"{_CRED_KEY}=***" in redacted
+    assert "UID=***" in redacted
+
+
 def test_include_secrets_keeps_raw() -> None:
     raw = f"{_CRED_KEY}=" + "hunter2"
     record = {"connection_string": raw}

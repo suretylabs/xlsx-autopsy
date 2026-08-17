@@ -9,20 +9,35 @@ from __future__ import annotations
 import re
 from typing import Any
 
+__all__ = ["redact_connection_fields", "redact_connection_string"]
+
+# Brace-wrapped values are the OLEDB/ODBC way to hide a semicolon inside a password.
+# `[^;]*` alone fails open on `PWD={pa;ss}`.
 _SECRET_KEY_RE = re.compile(
     r"(?i)\b("
     r"Password|Pwd|PWD|"
     r"User ID|UID|UserName|Username|User|"
     r"AccountKey|SharedAccessKey|SharedAccessSignature|"
     r"Secret|Token|AccessToken|ApiKey|API Key|Key"
-    r")\s*=\s*([^;]*)"
+    r")\s*=\s*"
+    r"(\{[^}]*\}|\"[^\"]*\"|'[^']*'|[^;]*)"
 )
 
 _REDACTED = "***"
 
 
 def redact_connection_string(value: str | None) -> str | None:
-    """Mask password/user/key pairs inside an OLEDB/ODBC connection string."""
+    """Mask password/user/key pairs inside an OLEDB/ODBC connection string.
+
+    Values may be bare, single-quoted, double-quoted, or brace-delimited.
+    Brace form is required when the secret itself contains a semicolon.
+
+    Args:
+        value: Raw connection string, or None.
+
+    Returns:
+        The same string with secret values replaced by ``***``, or None.
+    """
     if value is None:
         return None
     return _SECRET_KEY_RE.sub(lambda match: f"{match.group(1)}={_REDACTED}", value)

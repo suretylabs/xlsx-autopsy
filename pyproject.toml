@@ -1,6 +1,6 @@
 [project]
 name = "xlsx-autopsy"
-version = "0.1.0"
+version = "0.1.1"
 description = "Decompose a huge Excel workbook without opening it."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -22,8 +22,7 @@ dependencies = [
     "duckdb>=1.2",
     "fastexcel>=0.12",
     "lxml>=5.0",
-    "polars>=1.0",
-    "python-calamine>=0.3",
+    "polars>=1.0,<2",
     "rich>=13.0",
 ]
 
@@ -49,3 +48,6 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 addopts = "-q"
+filterwarnings = [
+    "ignore:from_arrow\\(<ArrowStreamExportable>\\) will return a Series:FutureWarning",
+]

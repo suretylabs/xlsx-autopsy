@@ -29,6 +29,8 @@ def write_fixture_xlsx(path: Path) -> Path:
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
   <Override PartName="/xl/connections.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>
@@ -48,6 +50,7 @@ def write_fixture_xlsx(path: Path) -> Path:
 <workbook xmlns="{NS_SS}" xmlns:r="{NS_R}">
   <sheets>
     <sheet name="Summary" sheetId="1" r:id="rId1"/>
+    <sheet name="!!!" sheetId="2" r:id="rId4"/>
   </sheets>
 </workbook>
 """,
@@ -59,6 +62,8 @@ def write_fixture_xlsx(path: Path) -> Path:
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/connections" Target="connections.xml"/>
   <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
 </Relationships>
 """,
         )
@@ -75,17 +80,45 @@ def write_fixture_xlsx(path: Path) -> Path:
 """,
         )
         zf.writestr(
+            "xl/sharedStrings.xml",
+            f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="{NS_SS}" count="2" uniqueCount="2">
+  <si><t>premium</t></si>
+  <si><t>exposure</t></si>
+</sst>
+""",
+        )
+        zf.writestr(
             "xl/worksheets/sheet1.xml",
             f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="{NS_SS}">
   <sheetData>
     <row r="1">
-      <c r="A1" t="inlineStr"><is><t>premium</t></is></c>
+      <c r="A1" t="s"><v>0</v></c>
       <c r="B1"><v>100</v></c>
+      <c r="C1"><f>B1+B2</f><v>300</v></c>
     </row>
     <row r="2">
-      <c r="A2" t="inlineStr"><is><t>exposure</t></is></c>
+      <c r="A2" t="s"><v>1</v></c>
       <c r="B2"><v>200</v></c>
+      <c r="C2"><f t="shared" si="0" ref="C2:C2">B2+1</f><v>201</v></c>
+    </row>
+  </sheetData>
+</worksheet>
+""",
+        )
+        zf.writestr(
+            "xl/worksheets/sheet2.xml",
+            f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="{NS_SS}">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>punct</t></is></c>
+      <c r="B1"><v>1</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>keep</t></is></c>
+      <c r="B2"><v>2</v></c>
     </row>
   </sheetData>
 </worksheet>

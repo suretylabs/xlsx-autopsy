@@ -1,0 +1,17 @@
+# Changelog
+
+## 0.1.1 — 2026-08-17
+
+Fail-closed public slice.
+
+- CLI exits `1` on a missing workbook, a corrupt zip, or a formula-worker failure.
+- Connection redaction covers brace-wrapped and quoted OLEDB values, including secrets that contain semicolons.
+- Formula scout includes a sheet when the scout window errors or the part is larger than the window. Sheets past `max_sheets` are recorded, not dropped.
+- Formula workers discard their CSV on error. The parent never COPY-loads a missing file as success.
+- Each run wipes DuckDB, the blueprint, and `parquet/` unless `--keep-outputs` is set.
+- Punctuation-only sheet names (`!!!`) become `sheet_<sha256-8>` instead of an empty table name.
+- Pin `polars>=1.0,<2`. Drop unused `python-calamine` (Polars Calamine goes through `fastexcel`).
+
+## 0.1.0 — 2026-08-17
+
+First public extract: CLI, redaction by default, synthetic fixture tests, ruff/pyright/pytest on 3.12–3.14.
