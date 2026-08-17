@@ -1,0 +1,20 @@
+{
+  "include": ["src", "tests"],
+  "exclude": ["**/__pycache__", ".venv", "out"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "strict",
+  "reportMissingTypeStubs": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownLambdaType": "none",
+  "reportPrivateUsage": "none",
+  "reportUnnecessaryIsInstance": "error",
+  "reportUnnecessaryComparison": "error",
+  "reportOptionalMemberAccess": "error",
+  "reportCallIssue": "error",
+  "reportReturnType": "error",
+  "reportAttributeAccessIssue": "error"
+}

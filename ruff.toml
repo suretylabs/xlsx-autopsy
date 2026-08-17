@@ -1,0 +1,41 @@
+# --------------------------------------------------------------------
+# Top level (shared by lint and format)
+# --------------------------------------------------------------------
+
+fix = true
+line-length = 120
+indent-width = 4
+src = ["src", "tests"]
+
+# --------------------------------------------------------------------
+# Lint configuration
+# --------------------------------------------------------------------
+
+[lint]
+select = ["E", "W", "F", "I", "N", "UP", "TID", "B", "D", "T20"]
+ignore = ["D203", "D213"]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["D"]
+"tests/conftest.py" = ["D", "E501"]
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.isort]
+combine-as-imports = true
+known-first-party = ["xlsx_autopsy"]
+force-sort-within-sections = true
+
+# --------------------------------------------------------------------
+# Formatter configuration
+# --------------------------------------------------------------------
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+preview = false
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
