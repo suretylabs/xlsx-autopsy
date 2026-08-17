@@ -19,20 +19,33 @@ This is a forensics CLI, not a spreadsheet editor.
 
 ## Install
 
+This is a **uv-native** repo. There is no pip path.
+
 ```bash
-pip install -e .
-# or
 uv sync
+uv run xlsx-autopsy --excel workbook.xlsx
 ```
 
-Python 3.12, 3.13, or 3.14. Local default is 3.14.
+Contributors:
+
+```bash
+uv sync --group dev
+```
+
+One-shot, no clone:
+
+```bash
+uvx --from git+https://github.com/suretylabs/xlsx-autopsy xlsx-autopsy --excel workbook.xlsx
+```
+
+Python 3.12, 3.13, or 3.14. Local default is 3.14 (`.python-version`).
 
 ## Usage
 
 ```bash
-xlsx-autopsy --excel workbook.xlsx
-xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas
-python -m xlsx_autopsy --excel workbook.xlsx
+uv run xlsx-autopsy --excel workbook.xlsx
+uv run xlsx-autopsy --excel workbook.xlsx -o out --skip-formulas
+uv run python -m xlsx_autopsy --excel workbook.xlsx
 ```
 
 Each run wipes `reconstruction.duckdb`, `report_blueprint.json`, and `parquet/`
@@ -61,7 +74,7 @@ sst_truncate = 5000
 ```
 
 ```bash
-xlsx-autopsy --config xlsx-autopsy.toml
+uv run xlsx-autopsy --config xlsx-autopsy.toml
 ```
 
 ## What it extracts

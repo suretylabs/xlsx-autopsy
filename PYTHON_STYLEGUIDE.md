@@ -23,6 +23,8 @@
 - Support Python 3.12+. The project targets Python 3.14. Syntax or APIs newer than 3.12 require an explicit
   change to the supported-version contract before use.
 - Follow PEP 8 with Ruff as the primary linter/formatter.
+- This repository is uv-native. Document and run `uv sync`, `uv run`, `uv add`,
+  and `uv lock`. Do not add a pip, poetry, or pdm install path.
 
 ## Configuration
 

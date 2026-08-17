@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 — 2026-08-17
+
+uv-native public surface.
+
+- Install and run docs are `uv sync` / `uv run` / `uvx`. There is no pip path.
+- `[tool.uv] package = true` so uv treats this as a project package.
+
 ## 0.1.1 — 2026-08-17
 
 Fail-closed public slice.

@@ -2,6 +2,8 @@
 
 This is a small public tool. Keep it that way.
 
+The package manager is **uv**. Do not document or add a pip, poetry, or pdm path.
+
 ## Bar
 
 1. Read `PYTHON_STYLEGUIDE.md`. It is normative, not decorative.

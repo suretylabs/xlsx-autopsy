@@ -1,6 +1,6 @@
 [project]
 name = "xlsx-autopsy"
-version = "0.1.1"
+version = "0.1.2"
 description = "Decompose a huge Excel workbook without opening it."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -36,6 +36,9 @@ Issues = "https://github.com/suretylabs/xlsx-autopsy/issues"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
 
 [dependency-groups]
 dev = [

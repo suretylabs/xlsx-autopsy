@@ -133,7 +133,7 @@ Ruff behavior lives in `ruff.toml`, not in editor settings.
 
 ## CI
 
-`.github/workflows/ci.yml` runs the same four commands on Python 3.12 and 3.13.
+`.github/workflows/ci.yml` runs the same four commands on Python 3.12, 3.13, and 3.14.
 If you change a local check, change CI in the same PR.
 
 ## Updating tools
