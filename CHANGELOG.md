@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-08-18
+
+Docs on the live PyPI page.
+
+- README leads with pivot index -> name and contrasts grid dumpers / malware scanners
+- Package description matches that claim
+
 ## 0.2.0 — 2026-08-17
 
 Launch surface.
@@ -10,7 +17,6 @@ Launch surface.
 - SECURITY.md, Dependabot, PyPI trusted-publish workflow
 - Published to PyPI as [`xlsx-autopsy`](https://pypi.org/project/xlsx-autopsy/) `0.2.0`
 - GitHub issue template that forbids real workbooks
-- README leads with pivot index -> name and contrasts grid dumpers / malware scanners
 
 ## 0.1.2 — 2026-08-17
 
