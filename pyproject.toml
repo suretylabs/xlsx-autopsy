@@ -1,7 +1,7 @@
 [project]
 name = "xlsx-autopsy"
 dynamic = ["version"]
-description = "Autopsy for huge Excel workbooks: pivots, connections, and formulas into DuckDB without opening the file."
+description = "Resolve Excel pivot indexes to names and lift connections and formulas into DuckDB without opening the file."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"

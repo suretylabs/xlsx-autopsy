@@ -5,29 +5,46 @@
 
 Decompose a huge Excel workbook without opening it.
 
-If the file is 300MB and the interesting logic lives in pivot caches, stop
-double-clicking. Treat the workbook as a zip of report definitions. Lift the
-model into DuckDB and Parquet. Rebuild it in SQL.
+The grid is a rendering. The report lives in pivot caches and connections.
+Those caches store field **indexes**. This CLI resolves them to names,
+redacts OLEDB secrets, and lifts the model into DuckDB and Parquet.
+
+Inside the xlsx:
+
+```json
+{"row_fields": [2], "data_fields": [{"fld": 11}]}
+```
+
+In `report_blueprint.json`:
+
+```json
+{"row_field_names": ["Region"], "data_field_names": [{"field_name": "Premium"}]}
+```
+
+That mapping is usually the report. The sheet is just how Excel drew it.
 
 ```bash
 uvx xlsx-autopsy report.xlsx
 ```
 
-This is a forensics CLI, not a spreadsheet editor.
+This is a report autopsy. Not a spreadsheet editor. Not a malware scanner.
+Not another xlsx-to-DataFrame dump.
 
 ## Why this exists
 
-Some production "reports" are Excel workbooks that nobody should open.
+Some production "reports" are 300MB workbooks nobody should open. The people
+who built them left. The logic is in the zip, not the grid.
 
-| What people try | What actually happens |
+| What people try | What they actually get |
 | --- | --- |
-| Double-click in Excel | Excel loads the rendering. You wait. Then you wait more. |
-| `openpyxl` / `xlrd` | Cell-grid libraries. They do not reconstruct the report model. |
+| Double-click in Excel | The rendering. Then you wait. |
+| pandas / DuckDB `read_xlsx` / `xlsx2csv` | The grid as a table. Pivot indexes stay indexes. Connections are gone. |
+| `openpyxl` / `xlrd` | A cell library. You still write the reconstruction. |
 | `xlwings` | Automates Excel. You still opened Excel. |
-| This | Streams the zip. Pivots, OLEDB connections, formulas, sheets. Queryable output. |
+| `oletools` / ExcelRaven | Macros, malware, leaked passwords. Different job. |
+| This | Field `2` becomes `Region`. Secrets stripped. Formulas streamed. Queryable output. |
 
-The grid is a rendering. The model is in pivot caches, named ranges, and
-connections. Opening the file is how you lose an afternoon.
+Opening the file is how you lose an afternoon.
 
 ## Install
 

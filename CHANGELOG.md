@@ -10,7 +10,7 @@ Launch surface.
 - SECURITY.md, Dependabot, PyPI trusted-publish workflow
 - Published to PyPI as [`xlsx-autopsy`](https://pypi.org/project/xlsx-autopsy/) `0.2.0`
 - GitHub issue template that forbids real workbooks
-- README positions this against Excel, openpyxl, and xlwings
+- README leads with pivot index -> name and contrasts grid dumpers / malware scanners
 
 ## 0.1.2 — 2026-08-17
 
