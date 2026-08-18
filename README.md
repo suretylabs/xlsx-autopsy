@@ -1,6 +1,7 @@
 # xlsx-autopsy
 
 [![ci](https://github.com/suretylabs/xlsx-autopsy/actions/workflows/ci.yml/badge.svg)](https://github.com/suretylabs/xlsx-autopsy/actions/workflows/ci.yml)
+[![pypi](https://img.shields.io/pypi/v/xlsx-autopsy.svg)](https://pypi.org/project/xlsx-autopsy/)
 
 Decompose a huge Excel workbook without opening it.
 
@@ -9,7 +10,7 @@ double-clicking. Treat the workbook as a zip of report definitions. Lift the
 model into DuckDB and Parquet. Rebuild it in SQL.
 
 ```bash
-uvx --from git+https://github.com/suretylabs/xlsx-autopsy xlsx-autopsy report.xlsx
+uvx xlsx-autopsy report.xlsx
 ```
 
 This is a forensics CLI, not a spreadsheet editor.
@@ -33,9 +34,18 @@ connections. Opening the file is how you lose an afternoon.
 **uv-native.** There is no pip path.
 
 ```bash
+uvx xlsx-autopsy workbook.xlsx
+uv tool install xlsx-autopsy
+```
+
+From a clone:
+
+```bash
 uv sync
 uv run xlsx-autopsy workbook.xlsx
 ```
+
+Pin a SHA with `uvx --from git+https://github.com/suretylabs/xlsx-autopsy xlsx-autopsy`.
 
 Contributors:
 
